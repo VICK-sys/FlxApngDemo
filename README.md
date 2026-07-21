@@ -1,17 +1,15 @@
 # FlxApngDemo
 
-Animated PNG (APNG) playback for [HaxeFlixel](https://haxeflixel.com/) — as far as we can tell, the first APNG player in the Haxe ecosystem. Drop an `.png` animation into `assets/apng`, load it with one line of code, and it plays.
+Animated PNG (APNG) playback for [HaxeFlixel](https://haxeflixel.com/). Put an APNG in `assets/apng`, load it with `ApngSprite`, and it plays.
 
-## Why APNG?
+APNG advantages over GIF:
 
-APNG is the modern successor to GIF, and it's what platforms like Discord use for animated stickers. Compared to GIF it has two big advantages:
+- Full 24-bit color instead of a 256-color palette
+- 256 levels of transparency instead of on/off, so anti-aliased edges and soft shadows render correctly
 
-- **Full color** — GIF is limited to 256 colors per frame; APNG uses the full 16 million.
-- **Real transparency** — GIF pixels are either fully solid or fully invisible, which is why GIFs have those crunchy white edges on transparent backgrounds. APNG has 256 levels of transparency, so soft shadows, glows, and anti-aliased edges look right on any background.
+The decoder is written entirely in Haxe and works the same on every target. No native libraries are required.
 
-Nothing in the Haxe world could play them — until now.
-
-## Showing an APNG in your game
+## Usage
 
 ```haxe
 var sticker = new ApngSprite(0, 0, AssetPaths.mysticker__png);
@@ -19,50 +17,51 @@ sticker.screenCenter();
 add(sticker);
 ```
 
-That's it. The decoder is written entirely in Haxe, so it works the same on every target with no native libraries to install. If a file is broken and can't be read, you get a small magenta square and a log message instead of a crash.
+A file that fails to decode shows a magenta placeholder and logs a warning instead of crashing.
 
-Animations that are set to play a limited number of times stop on their last frame and fire `onComplete`, just like the format intends.
+Animations with a finite play count stop on their last frame and fire `onComplete`.
 
-### Playback controls
+### Playback properties
 
-- `speed` — playback rate multiplier (clamped to a sane 0.05×–10×)
-- `paused` — freeze and unfreeze
+- `speed` — playback rate multiplier (clamped to 0.05–10)
+- `paused` — pause and resume
 - `reversed` — play backwards
-- `apngFrame` — read or jump to a specific frame
-- `onLoop` / `onComplete` — run your own code when the animation loops or finishes its play count
+- `apngFrame` — read or set the current frame
+- `onLoop` / `onComplete` — signals fired on each loop and when a finite play count finishes
 
-Decoded animations are cached and shared — load the same file in ten places and the decode work happens once. `ApngCache.clear()` frees the memory, and `ApngCache.enableAutoClear()` does it automatically on every screen change (sprites that survive the change quietly reload themselves).
+Decoded animations are cached and shared: loading the same file multiple times decodes it once. `ApngCache.clear()` frees the memory, and `ApngCache.enableAutoClear()` clears automatically on every state switch. Sprites that survive a state switch reload their file on the next update.
 
-## Setting up your project
+## Project setup
 
-Two things beyond copying the three source files (`ApngDecoder.hx`, `ApngCache.hx`, `ApngSprite.hx`):
-
-1. Add the format library: `haxelib install format`, and `<haxelib name="format" />` in `Project.xml`.
-2. APNG files must reach the game as raw bytes, not as pre-decoded images (the toolchain treats `.png` as a regular image by default and would flatten it to its first frame). Keep them in their own folder, declared like this:
+1. Copy `ApngDecoder.hx`, `ApngCache.hx`, and `ApngSprite.hx` into your source folder.
+2. Install the format library (`haxelib install format`) and add `<haxelib name="format" />` to `Project.xml`.
+3. APNG files must be packaged as raw bytes. Lime treats `.png` as a regular image by default, which flattens an APNG to its first frame. Keep APNGs in a dedicated folder declared as binary:
 
 ```xml
 <assets path="assets" exclude="apng" />
 <assets path="assets/apng" rename="assets/apng" type="binary" />
 ```
 
-## What's supported
+## Supported
 
-- Truecolor with or without transparency, greyscale, and indexed/palette color (including palette transparency) — 8-bit depth
-- All APNG dispose and blend modes, variable per-frame timing, finite play counts
-- Plain non-animated PNGs load too and show as a single frame, so you can use `ApngSprite` everywhere without caring which kind of file you have
+- Truecolor, greyscale, and indexed color, with or without transparency (including palette transparency) — 8-bit depth
+- All APNG dispose and blend modes
+- Exact per-frame timing, including variable frame delays
+- Finite play counts
+- Plain non-animated PNGs, shown as a single frame
 
-Not supported (rare in practice, and the decoder tells you clearly): interlaced PNGs and 16-bit color depth.
+Not supported: interlaced PNGs and 16-bit color depth. Both fail with a clear error message.
 
-Frames are unpacked once into a single sprite sheet, so very long animations produce a very large image — the game logs a warning past 4096px, where older or mobile graphics cards start refusing textures.
+## Performance
 
-Each animation honors its exact per-frame timing (APNG allows every frame to display for a different duration), not an averaged frame rate.
+Frames are unpacked once into a single sprite sheet. A warning is logged when a sheet exceeds 4096px, the texture size limit of older and mobile GPUs.
 
-Real decode costs, measured on the slowest target (HTML5, where the unpacking runs in pure JavaScript): sticker-sized animations decode in 4–11ms; a 5-second full-color 240px video clip (82 frames, 6.6MB) takes about half a second, once, when first loaded. The decode time is printed to the console for every file so you can check your own assets. Keep clips to a few seconds and pre-load big ones somewhere the pause won't be felt.
+Decode times measured on HTML5 (the slowest target): 4–11ms for sticker-sized files, about 470ms for a 5-second 240px video clip (82 frames, 6.6MB). Decoding happens once per file, on first load, and the time is printed to the console for each file. Load large files at a point where a pause is acceptable.
 
-## Running the demo
+## Demo
 
 ```
 lime test html5
 ```
 
-The demo plays four files over a checkerboard (so you can see the transparency is real): a full-color video clip, a smooth-alpha bouncing ball, an indexed-color square, and a static PNG. SPACE pauses, LEFT/RIGHT change speed, R reverses.
+The demo plays four files over a checkerboard background: a full-color video clip, a bouncing ball with smooth alpha, an indexed-color square, and a static PNG. SPACE pauses, LEFT/RIGHT change speed, R reverses.
