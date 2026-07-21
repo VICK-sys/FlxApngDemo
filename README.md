@@ -9,6 +9,8 @@ APNG advantages over GIF:
 
 The decoder is written entirely in Haxe and works the same on every target. No native libraries are required.
 
+![Demo: four APNG variants over a checkerboard showing transparency](screenshots/demo.png)
+
 ## Usage
 
 ```haxe
