@@ -18,6 +18,7 @@ class ApngCache
 			return apngs.get(path);
 
 		var data:ApngData = null;
+		var t0 = haxe.Timer.stamp();
 		try
 		{
 			data = ApngDecoder.decode(Assets.getBytes(path));
@@ -30,8 +31,14 @@ class ApngCache
 
 		if (data != null)
 		{
+			trace('ApngCache: decoded "$path" (${data.delaysMs.length} frames) in ${Math.round((haxe.Timer.stamp() - t0) * 1000)}ms');
 			if (data.sheet.width > 4096 || data.sheet.height > 4096)
 				FlxG.log.warn('ApngCache: spritesheet for "$path" exceeds 4096px, may fail on older or mobile GPUs');
+
+			var graphic = FlxG.bitmap.add(data.sheet, false, "apng:" + path);
+			graphic.persist = true;
+			graphic.destroyOnNoUse = false;
+
 			apngs.set(path, data);
 		}
 		return data;

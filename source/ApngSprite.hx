@@ -10,14 +10,14 @@ import flixel.util.FlxSignal;
 class ApngSprite extends FlxSprite
 {
 	public var speed(default, set):Float = 1;
-	public var paused(default, set):Bool = false;
-	public var reversed(default, set):Bool = false;
+	public var paused:Bool = false;
+	public var reversed:Bool = false;
 	public var apngFrame(get, set):Int;
 	public var onLoop(default, null):FlxSignal = new FlxSignal();
 	public var onComplete(default, null):FlxSignal = new FlxSignal();
 
-	var baseFrameRate:Float = 30;
-	var lastFrameIndex:Int = 0;
+	var delays:Array<Float>;
+	var frameTimer:Float = 0;
 	var apngPath:String;
 	var customFrameRate:Null<Float>;
 	var needsReload:Bool = false;
@@ -37,6 +37,8 @@ class ApngSprite extends FlxSprite
 		apngPath = path;
 		customFrameRate = frameRate;
 		playsDone = 0;
+		frameTimer = 0;
+		delays = null;
 
 		var data = ApngCache.get(path);
 		if (data == null)
@@ -48,15 +50,12 @@ class ApngSprite extends FlxSprite
 		numPlays = data.numPlays;
 		loadGraphic(FlxG.bitmap.add(data.sheet, false, "apng:" + path), true, data.frameWidth, data.frameHeight);
 
-		var total = 0;
-		for (delay in data.delaysMs)
-			total += delay;
-		baseFrameRate = frameRate != null ? frameRate : 1000 * data.delaysMs.length / Math.max(total, 1);
+		if (frameRate != null && frameRate > 0)
+			delays = [for (_ in data.delaysMs) 1 / frameRate];
+		else
+			delays = [for (d in data.delaysMs) d / 1000];
 
-		animation.add("apng", [for (i in 0...data.delaysMs.length) i], baseFrameRate * speed, true);
-		animation.play("apng", false, reversed);
-		animation.curAnim.paused = paused;
-		lastFrameIndex = animation.frameIndex;
+		animation.frameIndex = 0;
 		return this;
 	}
 
@@ -70,20 +69,42 @@ class ApngSprite extends FlxSprite
 
 		super.update(elapsed);
 
-		if (animation.curAnim != null)
+		if (delays != null && delays.length > 1 && !paused)
 		{
-			var cur = animation.frameIndex;
-			if ((!reversed && cur < lastFrameIndex) || (reversed && cur > lastFrameIndex))
+			frameTimer += elapsed * speed;
+			var idx = animation.frameIndex;
+			var guard = 0;
+			while (frameTimer >= delays[idx] && guard++ < 1000)
 			{
-				onLoop.dispatch();
-				playsDone++;
-				if (numPlays > 0 && playsDone >= numPlays)
+				frameTimer -= delays[idx];
+				if (!reversed)
 				{
-					paused = true;
-					onComplete.dispatch();
+					idx++;
+					if (idx >= delays.length)
+					{
+						idx = 0;
+						if (finishLoop())
+						{
+							idx = delays.length - 1;
+							break;
+						}
+					}
+				}
+				else
+				{
+					idx--;
+					if (idx < 0)
+					{
+						idx = delays.length - 1;
+						if (finishLoop())
+						{
+							idx = 0;
+							break;
+						}
+					}
 				}
 			}
-			lastFrameIndex = cur;
+			animation.frameIndex = idx;
 		}
 	}
 
@@ -95,6 +116,19 @@ class ApngSprite extends FlxSprite
 		onComplete.removeAll();
 	}
 
+	function finishLoop():Bool
+	{
+		onLoop.dispatch();
+		playsDone++;
+		if (numPlays > 0 && playsDone >= numPlays)
+		{
+			paused = true;
+			onComplete.dispatch();
+			return true;
+		}
+		return false;
+	}
+
 	function onCacheCleared():Void
 	{
 		if (apngPath != null)
@@ -103,41 +137,21 @@ class ApngSprite extends FlxSprite
 
 	function set_speed(value:Float):Float
 	{
-		value = FlxMath.bound(value, 0.05, 10);
-		speed = value;
-		if (animation.curAnim != null)
-			animation.curAnim.frameRate = baseFrameRate * value;
-		return value;
-	}
-
-	function set_paused(value:Bool):Bool
-	{
-		paused = value;
-		if (animation.curAnim != null)
-			animation.curAnim.paused = value;
-		return value;
-	}
-
-	function set_reversed(value:Bool):Bool
-	{
-		reversed = value;
-		if (animation.curAnim != null)
-		{
-			animation.play("apng", true, value, animation.frameIndex);
-			animation.curAnim.paused = paused;
-		}
-		return value;
+		return speed = FlxMath.bound(value, 0.05, 10);
 	}
 
 	function get_apngFrame():Int
 	{
-		return animation.curAnim != null ? animation.frameIndex : 0;
+		return animation.frameIndex;
 	}
 
 	function set_apngFrame(value:Int):Int
 	{
-		if (animation.curAnim != null)
-			animation.frameIndex = value;
+		if (delays != null)
+		{
+			frameTimer = 0;
+			animation.frameIndex = Std.int(FlxMath.bound(value, 0, delays.length - 1));
+		}
 		return value;
 	}
 }

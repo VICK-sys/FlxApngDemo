@@ -53,7 +53,11 @@ Two things beyond copying the three source files (`ApngDecoder.hx`, `ApngCache.h
 
 Not supported (rare in practice, and the decoder tells you clearly): interlaced PNGs and 16-bit color depth.
 
-Frames are unpacked once into a single sprite sheet, so very long animations produce a very large image — the game logs a warning past 4096px, where older or mobile graphics cards start refusing textures. Keep animations to a few seconds.
+Frames are unpacked once into a single sprite sheet, so very long animations produce a very large image — the game logs a warning past 4096px, where older or mobile graphics cards start refusing textures.
+
+Each animation honors its exact per-frame timing (APNG allows every frame to display for a different duration), not an averaged frame rate.
+
+Real decode costs, measured on the slowest target (HTML5, where the unpacking runs in pure JavaScript): sticker-sized animations decode in 4–11ms; a 5-second full-color 240px video clip (82 frames, 6.6MB) takes about half a second, once, when first loaded. The decode time is printed to the console for every file so you can check your own assets. Keep clips to a few seconds and pre-load big ones somewhere the pause won't be felt.
 
 ## Running the demo
 
